@@ -12,19 +12,50 @@ import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import StatCard from "../components/StatCard";
 import IssueTable, { type Issue } from "../components/IssueTable";
-import { getContract } from "../contract";
+import { getContract, getContractOwner } from "../contract";
 import CreateIssue from "../components/CreateIssue";
 import AllIssues from "./AllIssues";
 import Assignments from "./Assignments";
-
-
+import History from "./History";
+import StatusManagement from "./StatusManagement";
+import ImportData from "./ImportData";
 
 export default function Dashboard() {
-
   const [activePage, setActivePage] = useState("Dashboard");
   const [totalIssues, setTotalIssues] = useState(0);
   const [issues, setIssues] = useState<Issue[]>([]);
 
+  // User role information
+  const [userAddress, setUserAddress] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const [walletConnected, setWalletConnected] = useState(false);
+
+  async function handleWalletConnected(address: string) {
+    try {
+      const currentAddress = ethers.getAddress(address);
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+
+      const ownerAddress = ethers.getAddress(
+        await getContractOwner(provider)
+      );
+
+      setUserAddress(currentAddress);
+      setIsAdmin(currentAddress === ownerAddress);
+      setWalletConnected(true);
+
+      console.log("Connected account:", currentAddress);
+      console.log("Contract owner:", ownerAddress);
+      console.log(
+        "User role:",
+        currentAddress === ownerAddress ? "Admin" : "Citizen"
+      );
+
+    } catch (error) {
+      console.error("Failed to update wallet information:", error);
+    }
+  }
 
   async function loadBlockchainData() {
     try {
@@ -34,15 +65,11 @@ export default function Dashboard() {
       }
 
       const provider = new ethers.BrowserProvider(window.ethereum);
-
       const contract = getContract(provider);
 
-      // Get total number of issues
       const count = await contract.getIssueCount();
-
       setTotalIssues(Number(count));
 
-      // Get all issues
       const blockchainIssues = await contract.getAllIssues();
 
       console.log("Blockchain issues:", blockchainIssues);
@@ -71,17 +98,98 @@ export default function Dashboard() {
       );
 
       setIssues(formattedIssues);
-
     } catch (error) {
       console.error("Failed to load blockchain data:", error);
     }
   }
-  
+
+  // Check whether the connected MetaMask account is the contract owner
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    let isMounted = true;
+
+    async function checkUserRole(accounts?: string[]) {
+      try {
+        const connectedAccounts: string[] =
+          accounts ??
+          (await window.ethereum.request({
+            method: "eth_accounts",
+          }));
+
+        if (!isMounted) return;
+
+        if (connectedAccounts.length === 0) {
+          setWalletConnected(false);
+          setUserAddress(null);
+          setIsAdmin(false);
+          return;
+        }
+
+        setWalletConnected(true);
+
+        const provider = new ethers.BrowserProvider(window.ethereum);
+
+        const currentAddress = ethers.getAddress(connectedAccounts[0]);
+        const ownerAddress = ethers.getAddress(
+          await getContractOwner(provider)
+        );
+
+        if (!isMounted) return;
+
+        setUserAddress(currentAddress);
+        setIsAdmin(currentAddress === ownerAddress);
+
+        console.log("Connected account:", currentAddress);
+        console.log("Contract owner:", ownerAddress);
+        console.log(
+          "User role:",
+          currentAddress === ownerAddress ? "Admin" : "Citizen"
+        );
+      } catch (error) {
+        console.error("Failed to check user role:", error);
+        if (isMounted) {
+          setUserAddress(null);
+          setIsAdmin(false);
+        }
+      }
+    }
+
+    // Check the currently connected account
+    checkUserRole();
+
+    // Recheck the role when the MetaMask account changes
+    const handleAccountsChanged = (accounts: string[]) => {
+      checkUserRole(accounts);
+    };
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+
+    return () => {
+      isMounted = false;
+      window.ethereum.removeListener(
+        "accountsChanged",
+        handleAccountsChanged
+      );
+    };
+  }, []);
 
   useEffect(() => {
     loadBlockchainData();
   }, []);
-  
+
+  // Redirect citizens away from administrative pages
+  useEffect(() => {
+    const adminPages = [
+      "Assignments",
+      "Status Management",
+      "Import Data",
+    ];
+
+    if (!isAdmin && adminPages.includes(activePage)) {
+      setActivePage("Dashboard");
+    }
+  }, [isAdmin, activePage]);
 
   const reportedIssues = issues.filter(
     (issue) => issue.status === "Reported"
@@ -103,6 +211,7 @@ export default function Dashboard() {
       <Sidebar
         activePage={activePage}
         setActivePage={setActivePage}
+        isAdmin={isAdmin}
       />
 
       {/* Main Content */}
@@ -111,87 +220,121 @@ export default function Dashboard() {
         {/* Header */}
         <Header
           title={activePage}
-          description="Monitor and manage urban services across your city."
+          description=""
+          account={userAddress}
+          isAdmin={isAdmin}
+          onConnect={handleWalletConnected}
+          onDisconnect={() => {
+            setUserAddress(null);
+            setIsAdmin(false);
+            setWalletConnected(false);
+            setActivePage("Dashboard");
+          }}
         />
 
-      <div className="space-y-8 p-8">
+        <div className="space-y-8 p-8">
 
-        {activePage === "Create Issue" ? (
+          {activePage === "Create Issue" ? (
 
-          <CreateIssue
-            onIssueCreated={async () => {
-              await loadBlockchainData();
-              setActivePage("Dashboard");
-            }}
-          />
+            <CreateIssue
+              onIssueCreated={async () => {
+                await loadBlockchainData();
+                setActivePage("Dashboard");
+              }}
+            />
 
-        ) : activePage === "All Issues" ? (
+          ) : activePage === "All Issues" ? (
 
-          <AllIssues issues={issues} />
+            <AllIssues issues={issues} />
 
-        ) : activePage === "Assignments" ? (
+          ) : activePage === "Assignments" && isAdmin ? (
 
-          <Assignments
-            issues={issues}
-            onAssigned={loadBlockchainData}
-          />
+            <Assignments
+              issues={issues}
+              onAssigned={loadBlockchainData}
+            />
 
-        ) : (
+          ) : activePage === "History" ? (
 
-          <>
-            {/* Welcome Section */}
-            <section>
-              <h2 className="text-xl font-bold text-slate-900">
-                Welcome to UrbanChain
-              </h2>
+            <History issues={issues} />
 
-              <p className="mt-1 text-sm text-slate-500">
-                Here's what's happening with your city's urban services.
-              </p>
-            </section>
+          ) : activePage === "Status Management" && isAdmin ? (
 
-            {/* Statistics */}
-            <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            <StatusManagement
+              issues={issues}
+              onStatusUpdated={loadBlockchainData}
+            />
 
-              <StatCard
-                title="Total Issues"
-                value={totalIssues}
-                icon={ClipboardList}
-                color="#2563eb"
-              />
+          ) : activePage === "Import Data" && isAdmin ? (
 
-              <StatCard
-                title="Reported"
-                value={reportedIssues}
-                icon={AlertTriangle}
-                color="#d97706"
-              />
+            <ImportData onImportCompleted={loadBlockchainData} />
 
-              <StatCard
-                title="In Progress"
-                value={inProgressIssues}
-                icon={Clock}
-                color="#7c3aed"
-              />
+          ) : (
 
-              <StatCard
-                title="Resolved"
-                value={resolvedIssues}
-                icon={CheckCircle2}
-                color="#059669"
-              />
+            <>
+              {/* Welcome Section */}
+              <section>
+                <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  Welcome to UrbanChain
+                </h2>
 
-            </section>
+                <p className="mt-1 text-sm text-slate-500">
+                  Here's what's happening with your city's urban services.
+                </p>
 
-            {/* Recent Issues */}
-            <section>
-              <IssueTable issues={issues} />
-            </section>
-          </>
+                <p className="mt-2 text-xs text-slate-500">
+                  Connected account: {userAddress || "Not connected"}
 
-        )}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">Role: {isAdmin ? "Administrator" : "Citizen"}</p>
+              </div>
 
-      </div>
+
+              </section>
+
+              {/* Statistics */}
+              <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+
+                <StatCard
+                  title="Total Issues"
+                  value={totalIssues}
+                  icon={ClipboardList}
+                  color="#2563eb"
+                />
+
+                <StatCard
+                  title="Reported"
+                  value={reportedIssues}
+                  icon={AlertTriangle}
+                  color="#d97706"
+                />
+
+                <StatCard
+                  title="In Progress"
+                  value={inProgressIssues}
+                  icon={Clock}
+                  color="#7c3aed"
+                />
+
+                <StatCard
+                  title="Resolved"
+                  value={resolvedIssues}
+                  icon={CheckCircle2}
+                  color="#059669"
+                />
+
+              </section>
+
+              {/* Recent Issues */}
+              <section>
+                <IssueTable issues={issues} />
+              </section>
+            </>
+
+          )}
+
+        </div>
       </main>
     </div>
   );

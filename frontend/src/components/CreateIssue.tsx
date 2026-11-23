@@ -21,6 +21,8 @@ export default function CreateIssue({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [customIssueType, setCustomIssueType] = useState("");
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
@@ -40,16 +42,26 @@ export default function CreateIssue({
 
       const issueId = `ISSUE-${Date.now()}`;
 
+      const finalIssueType =
+        issueType === "Other" ? customIssueType.trim() : issueType;
+
+      if (!finalIssueType) {
+        setError("Please specify the issue type.");
+        return;
+      }
+
       const transaction = await contract.createIssue(
         issueId,
-        issueType,
+        finalIssueType,
         location,
         description,
         Number(priority),
         reportedBy
-      );
+        );
 
       await transaction.wait();
+
+      setCustomIssueType("");
 
       alert(`Issue created successfully! ID: ${issueId}`);
 
@@ -106,7 +118,26 @@ export default function CreateIssue({
             <option value="Garbage Collection">Garbage Collection</option>
             <option value="Damaged Traffic Signal">Damaged Traffic Signal</option>
             <option value="Other">Other</option>
+            
           </select>
+
+          {issueType === "Other" && (
+                <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Specify Issue Type
+                    </label>
+                    <input
+                    type="text"
+                    value={customIssueType}
+                    onChange={(e) => setCustomIssueType(e.target.value)}
+                    placeholder="Enter the type of urban issue..."
+                    required
+                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500"
+                    />
+                </div>
+                )}
+
+
         </div>
 
         <div>

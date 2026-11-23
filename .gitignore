@@ -1,5 +1,6 @@
 # Node modules
 /node_modules
+frontend/node_modules/
 
 # Compilation output
 /dist
@@ -29,3 +30,9 @@
 
 # Snapshot cheatcodes output
 /snapshots
+
+# Frontend
+frontend/dist/
+
+# IDE
+.vscode/

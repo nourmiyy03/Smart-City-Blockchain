@@ -14,3 +14,13 @@ export function getContract(
     runner
   );
 }
+
+// Get the smart contract administrator's address
+export async function getContractOwner(
+  provider: ethers.Provider
+): Promise<string> {
+  const contract = getContract(provider);
+  const ownerAddress: string = await contract.owner();
+
+  return ownerAddress;
+}

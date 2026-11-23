@@ -415,5 +415,84 @@ describe("UrbanIssueRegistry", function () {
     });
 
 
+    it("should allow the owner to assign a team", async function () {
+    await registry.createIssue(
+        "ISSUE-ADMIN-1",
+        "Road Damage",
+        "Tangier",
+        "Large pothole",
+        2,
+        "Citizen 1"
+    );
+
+    await registry.assignTeam(
+    "ISSUE-ADMIN-1",
+    "Road Maintenance Team"
+    );
+
+    const issue = await registry.getIssue("ISSUE-ADMIN-1");
+
+    expect(issue.assignedTo).to.equal("Road Maintenance Team");
+    expect(issue.status).to.equal(1);
+    });
+
+    it("should prevent a non-owner from assigning a team", async function () {
+    await registry.createIssue(
+        "ISSUE-ADMIN-2",
+        "Road Damage",
+        "Tangier",
+        "Large pothole",
+        2,
+        "Citizen 1"
+    );
+
+    const [, otherUser] = await ethers.getSigners();
+
+    const unauthorizedRegistry =
+        registry.connect(otherUser);
+
+    await expect(
+        unauthorizedRegistry.assignTeam(
+        "ISSUE-ADMIN-2",
+        "Road Maintenance Team"
+        )
+    ).to.be.revertedWithCustomError(
+        registry,
+        "OwnableUnauthorizedAccount"
+    );
+    });
+
+    it("should prevent a non-owner from updating status", async function () {
+    await registry.createIssue(
+        "ISSUE-ADMIN-3",
+        "Broken Streetlight",
+        "Tangier",
+        "Streetlight not working",
+        1,
+        "Citizen 2"
+    );
+
+    await registry.assignTeam(
+        "ISSUE-ADMIN-3",
+        "Electrical Maintenance Team"
+    );
+
+    const [, otherUser] = await ethers.getSigners();
+
+    const unauthorizedRegistry =
+        registry.connect(otherUser);
+
+    await expect(
+        unauthorizedRegistry.updateStatus(
+        "ISSUE-ADMIN-3",
+        2,
+        "Team started intervention"
+        )
+    ).to.be.revertedWithCustomError(
+        registry,
+        "OwnableUnauthorizedAccount"
+    );
+    });
+
 
 });

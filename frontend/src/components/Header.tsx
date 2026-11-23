@@ -1,17 +1,24 @@
-import { useState } from "react";
-import { Bell, Wallet } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, Wallet, LogOut } from "lucide-react";
 import { ethers } from "ethers";
 
 interface HeaderProps {
   title: string;
   description: string;
+  account: string | null;
+  isAdmin: boolean;
+  onDisconnect: () => void;
+  onConnect: (address: string) => Promise<void>;
 }
 
 export default function Header({
   title,
   description,
+  account,
+  isAdmin,
+  onDisconnect,
+  onConnect,
 }: HeaderProps) {
-  const [account, setAccount] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
 
   const currentDate = new Date().toLocaleDateString("en-US", {
@@ -20,6 +27,23 @@ export default function Header({
     day: "numeric",
     year: "numeric",
   });
+
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    const handleAccountsChanged = (accounts: string[]) => {
+      console.log("MetaMask account changed:", accounts);
+    };
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+
+    return () => {
+      window.ethereum.removeListener(
+        "accountsChanged",
+        handleAccountsChanged
+      );
+    };
+  }, []);
 
   async function connectWallet() {
     try {
@@ -30,17 +54,34 @@ export default function Header({
 
       setConnecting(true);
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      // Request account access explicitly
+      await window.ethereum.request({
+        method: "wallet_requestPermissions",
+        params: [{ eth_accounts: {} }],
+      });
 
-      const accounts = await provider.send("eth_requestAccounts", []);
+      // Get the selected account
+      const accounts = await window.ethereum.request({
+        method: "eth_requestAccounts",
+      });
 
-      setAccount(accounts[0]);
+      if (accounts.length > 0) {
+        await onConnect(accounts[0]);
+      }
 
-    } catch (error) {
-      console.error("Wallet connection failed:", error);
+    } catch (error: any) {
+      if (error.code === 4001) {
+        console.log("Wallet connection rejected by user.");
+      } else {
+        console.error("Wallet connection failed:", error);
+      }
     } finally {
       setConnecting(false);
     }
+  }
+
+  function handleDisconnect() {
+    onDisconnect();
   }
 
   function shortenAddress(address: string) {
@@ -64,14 +105,26 @@ export default function Header({
       {/* Header actions */}
       <div className="flex items-center gap-5">
 
-        {/* Date */}
+        {/* Date and role */}
         <div className="hidden text-right sm:block">
           <p className="text-sm font-medium text-slate-700">
             {currentDate}
           </p>
 
-          <p className="text-xs text-slate-400">
-            Municipal Administration
+          <p
+            className={`mt-1 text-xs font-semibold ${
+              !account
+                ? "text-slate-400"
+                : isAdmin
+                  ? "text-blue-600"
+                  : "text-emerald-600"
+            }`}
+          >
+            {!account
+              ? "Wallet Not Connected"
+              : isAdmin
+                ? "Municipal Administrator"
+                : "Citizen Account"}
           </p>
         </div>
 
@@ -85,22 +138,45 @@ export default function Header({
           <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" />
         </button>
 
-        {/* Wallet */}
-        <button
-          onClick={connectWallet}
-          disabled={connecting}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Wallet size={17} />
+        {/* Wallet / Disconnect */}
+        {account ? (
+          <div className="flex items-center gap-2">
 
-          <span>
-            {connecting
-              ? "Connecting..."
-              : account
-                ? shortenAddress(account)
+            {/* Connected account */}
+            <div className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm">
+              <Wallet size={17} />
+
+              <span>
+                {shortenAddress(account)}
+              </span>
+            </div>
+
+            {/* Disconnect */}
+            <button
+              onClick={handleDisconnect}
+              className="flex items-center justify-center rounded-lg border border-slate-200 px-3 py-2.5 text-slate-600 transition hover:bg-red-50 hover:text-red-600"
+              title="Disconnect wallet"
+              aria-label="Disconnect wallet"
+            >
+              <LogOut size={17} />
+            </button>
+
+          </div>
+        ) : (
+          <button
+            onClick={connectWallet}
+            disabled={connecting}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Wallet size={17} />
+
+            <span>
+              {connecting
+                ? "Connecting..."
                 : "Connect Wallet"}
-          </span>
-        </button>
+            </span>
+          </button>
+        )}
 
       </div>
     </header>

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-contract UrbanIssueRegistry {
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract UrbanIssueRegistry is Ownable {
+
+    constructor() Ownable(msg.sender) {}
 
     // Possible priorities of an urban issue
     enum Priority {
@@ -185,7 +189,7 @@ contract UrbanIssueRegistry {
     function assignTeam(
         string memory _issueId,
         string memory _team
-    ) public {
+    ) public onlyOwner {
 
         // 1. Check that the issue exists
         require(
@@ -235,7 +239,7 @@ contract UrbanIssueRegistry {
         string memory _issueId,
         Status _newStatus,
         string memory _comment
-    ) public {
+    ) public onlyOwner {
 
         // 1. Check that the issue exists
         require(

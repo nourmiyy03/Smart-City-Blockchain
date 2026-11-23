@@ -7,11 +7,13 @@ import {
   Settings,
   Building2,
   PlusCircle,
+  RefreshCw
 } from "lucide-react";
 
 interface SidebarProps {
   activePage: string;
   setActivePage: (page: string) => void;
+  isAdmin: boolean;
 }
 
 const navigation = [
@@ -26,9 +28,10 @@ const navigation = [
     items: [
       { label: "Create Issue", icon: PlusCircle },
       { label: "All Issues", icon: AlertTriangle },
-      { label: "Assignments", icon: ClipboardList },
+      { label: "Assignments", icon: ClipboardList, adminOnly: true },
+      { label: "Status Management", icon: RefreshCw, adminOnly: true },
       { label: "History", icon: History },
-      { label: "Import Data", icon: FileSpreadsheet },
+      { label: "Import Data", icon: FileSpreadsheet, adminOnly: true },
     ],
   },
 ];
@@ -36,6 +39,7 @@ const navigation = [
 export default function Sidebar({
   activePage,
   setActivePage,
+  isAdmin,
 }: SidebarProps) {
   return (
     <aside className="fixed left-0 top-0 flex h-screen w-64 flex-col bg-slate-950 text-white">
@@ -58,35 +62,41 @@ export default function Sidebar({
 
       {/* Navigation */}
       <nav className="flex-1 space-y-8 px-4 py-8">
-        {navigation.map((section) => (
-          <div key={section.title}>
-            <p className="mb-3 px-3 text-xs font-semibold tracking-widest text-slate-500">
-              {section.title}
-            </p>
+        {navigation.map((section) => {
+          const visibleItems = section.items.filter(
+            (item) => !item.adminOnly || isAdmin
+          );
 
-            <div className="space-y-1">
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                const isActive = activePage === item.label;
+          return (
+            <div key={section.title}>
+              <p className="mb-3 px-3 text-xs font-semibold tracking-widest text-slate-500">
+                {section.title}
+              </p>
 
-                return (
-                  <button
-                    key={item.label}
-                    onClick={() => setActivePage(item.label)}
-                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors ${
-                      isActive
-                        ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
-                        : "text-slate-400 hover:bg-slate-800 hover:text-white"
-                    }`}
-                  >
-                    <Icon size={19} />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
+              <div className="space-y-1">
+                {visibleItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activePage === item.label;
+
+                  return (
+                    <button
+                      key={item.label}
+                      onClick={() => setActivePage(item.label)}
+                      className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
+                          : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                      }`}
+                    >
+                      <Icon size={19} />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Bottom settings */}

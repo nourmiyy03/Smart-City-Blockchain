@@ -25,6 +25,30 @@ const teams = [
   "Traffic Management Team",
 ];
 
+
+function getAssignmentError(err: any): string {
+  const errorData = JSON.stringify(err, Object.getOwnPropertyNames(err));
+
+  if (
+    errorData.includes("OwnableUnauthorizedAccount") ||
+    errorData.includes("0x118cdaa7")
+  ) {
+    return "Access denied: Only the municipal administrator can assign intervention teams.";
+  }
+
+  if (err.code === "ACTION_REJECTED") {
+    return "Transaction rejected by the user.";
+  }
+
+  return (
+    err.reason ||
+    err.shortMessage ||
+    err.message ||
+    "Team assignment failed."
+  );
+}
+
+
 export default function Assignments({
   issues,
   onAssigned,
@@ -83,11 +107,9 @@ export default function Assignments({
       await onAssigned();
 
     } catch (err: any) {
-      console.error("Team assignment failed:", err);
-      setError(
-        err.reason || err.shortMessage || err.message || "Assignment failed."
-      );
-    } finally {
+        console.error("Team assignment failed:", err);
+        setError(getAssignmentError(err));
+        } finally {
       setLoading(false);
     }
   }
